@@ -17,6 +17,9 @@ config.read('config.ini')
 API_KEY = config['API']['key']
 
 @app.route('/ring')
+
+@app.route('/health')
+
 def ring():
     # API Key validation
     if request.headers.get('X-API-Key') != API_KEY:
@@ -49,6 +52,12 @@ def create_tray_icon():
     menu = pystray.Menu(pystray.MenuItem("Exit", exit_action))
     icon = pystray.Icon("name", image, "Doorbell Server", menu)
     icon.run()
+    
+def health_check():
+    if request.headers.get('X-API-Key') != API_KEY:
+        abort(401)
+    return "OK", 200
+        
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == '--tray':

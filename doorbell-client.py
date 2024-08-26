@@ -4,11 +4,26 @@ import time
 from requests.exceptions import RequestException
 import configparser
 
+
 config = configparser.ConfigParser()
 config.read('config.ini')
 PC_IP = config['NETWORK']['ip']
 PC_PORT = config['NETWORK']['port']
 API_KEY = config['API']['key']
+
+def check_connection():
+    try:
+        response = requests.get(f"https://{PC_IP}:{PC_PORT}/health", 
+                                headers={"X-API-Key": API_KEY}, 
+                                verify=False, timeout=5)
+        return response.status_code == 200
+    except RequestException:
+        return False
+        
+def reconnect():
+    while not check_connection():
+        print("Connection lost. Attempting to reconnect...")
+        time.sleep(60)  # Wait for 1 minute before trying again        
 
 def ring_doorbell():
     try:
@@ -28,7 +43,7 @@ def ring_doorbell():
 print("Listening for button press on gamepad...")
 
 last_press_time = 0
-COOLDOWN_PERIOD = 5  # 5 seconds cooldown between presses
+COOLDOWN_PERIOD = 1  # 5 seconds cooldown between presses
 
 while True:
     events = get_gamepad()
