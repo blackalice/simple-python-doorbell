@@ -4,10 +4,10 @@ import time
 from requests.exceptions import RequestException
 import configparser
 
-PC_IP = "192.168.1.119"
-PC_PORT = 5000
 config = configparser.ConfigParser()
 config.read('config.ini')
+PC_IP = config['NETWORK']['ip']
+PC_PORT = config['NETWORK']['port']
 API_KEY = config['API']['key']
 
 def ring_doorbell():

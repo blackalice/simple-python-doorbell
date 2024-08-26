@@ -1,0 +1,6 @@
+Flask
+winotify
+flask-limiter
+inputs
+requests
+configparser

@@ -19,11 +19,11 @@ def ring():
     if request.headers.get('X-API-Key') != API_KEY:
         abort(401)  # Unauthorized
 
-    toast = Notification(app_id="Advanced Alina Awareness System",
-                         title="Knock Knock!",
-                         msg="Alina is here!",
-                         duration="short",
-                         icon=r"C:\Users\beang\Documents\AI Web Dev\doorbell\icon.png")
+    toast = Notification(app_id= config['DETAILS']['appid'],
+                         title= config['DETAILS']['title'],
+                         msg= ['DETAILS']['msg'],
+                         duration= config['DETAILS']['duration'],
+                         icon= config['DETAILS']['icon'])
     
     toast.set_audio(audio.IM, loop=False)
     
