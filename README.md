@@ -67,7 +67,7 @@ icon = <PATH_TO_ICON_FILE>
 
 ```
 
-1.  Generate SSL certificate and key for the server
+1.  Generate SSL certificate and key for the server, name them server.crt and server.key and add them to an ssl folder within the root.
 
 2.  Run the server:
 
