@@ -5,6 +5,10 @@ from flask_limiter.util import get_remote_address
 import ssl
 import os
 import configparser
+import pystray
+from PIL import Image
+import threading
+import sys
 
 app = Flask(__name__)
 
@@ -13,7 +17,6 @@ config.read('config.ini')
 API_KEY = config['API']['key']
 
 @app.route('/ring')
-
 def ring():
     # API Key validation
     if request.headers.get('X-API-Key') != API_KEY:
@@ -30,9 +33,27 @@ def ring():
     toast.show()
     return "OK"
 
-if __name__ == '__main__':
+def run_flask():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     ssl_cert_path = os.path.join(current_dir, 'ssl', 'server.crt')
     ssl_key_path = os.path.join(current_dir, 'ssl', 'server.key')
     
     app.run(host='0.0.0.0', port=5000, ssl_context=(ssl_cert_path, ssl_key_path))
+
+def exit_action(icon):
+    icon.stop()
+    os._exit(0)
+
+def create_tray_icon():
+    image = Image.open("icon.png")  # Replace with path to your icon
+    menu = pystray.Menu(pystray.MenuItem("Exit", exit_action))
+    icon = pystray.Icon("name", image, "Doorbell Server", menu)
+    icon.run()
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == '--tray':
+        flask_thread = threading.Thread(target=run_flask)
+        flask_thread.start()
+        create_tray_icon()
+    else:
+        run_flask()

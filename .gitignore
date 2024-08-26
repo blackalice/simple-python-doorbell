@@ -164,3 +164,4 @@ ssl/server.csr
 ssl/server.key
 ssl/server.pem
 icon.png
+doorbell.bat
