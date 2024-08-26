@@ -1,4 +1,3 @@
-```
 # Simple Python Doorbell
 
 A wireless doorbell system using a gamepad as the button and a PC for notifications.
