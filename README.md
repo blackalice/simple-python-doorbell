@@ -109,6 +109,6 @@ icon = <PATH_TO_ICON_FILE>
 📞 Contact
 ----------
 
-Your Name - [@stuart_foy](https://twitter.com/stuart_foy)
+[@stuart_foy](https://twitter.com/stuart_foy)
 
 Project Link: <https://github.com/blackalice/simple-python-doorbell>
