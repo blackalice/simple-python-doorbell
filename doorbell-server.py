@@ -16,10 +16,12 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 API_KEY = config['API']['key']
 
-@app.route('/ring')
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+limiter.init_app(app)
 
-@app.route('/health')
-
+@app.route('/ring', methods=['GET'])
+@limiter.limit("5 per minute")
 def ring():
     # API Key validation
     if request.headers.get('X-API-Key') != API_KEY:
@@ -34,7 +36,13 @@ def ring():
     toast.set_audio(audio.IM, loop=False)
     
     toast.show()
-    return "OK"
+    return "Doorbell rung", 200
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    if request.headers.get('X-API-Key') != API_KEY:
+        abort(401)
+    return "OK", 200
 
 def run_flask():
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -52,12 +60,6 @@ def create_tray_icon():
     menu = pystray.Menu(pystray.MenuItem("Exit", exit_action))
     icon = pystray.Icon("name", image, "Doorbell Server", menu)
     icon.run()
-    
-def health_check():
-    if request.headers.get('X-API-Key') != API_KEY:
-        abort(401)
-    return "OK", 200
-        
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == '--tray':

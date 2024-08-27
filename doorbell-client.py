@@ -12,16 +12,7 @@ PC_IP = config['NETWORK']['ip']
 PC_PORT = config['NETWORK']['port']
 API_KEY = config['API']['key']
 
-def periodic_health_check():
-    while True:
-        if not check_connection():
-            print("Connection lost. Attempting to reconnect...")
-            reconnect()
-        time.sleep(60)  # Check every minute
 
-# Start the health check in a separate thread
-health_check_thread = threading.Thread(target=periodic_health_check, daemon=True)
-health_check_thread.start()
 
 
 def check_connection():
@@ -33,10 +24,6 @@ def check_connection():
     except RequestException:
         return False
         
-def reconnect():
-    while not check_connection():
-        print("Connection lost. Attempting to reconnect...")
-        time.sleep(60)  # Wait for 1 minute before trying again        
 
 def ring_doorbell():
     try:
@@ -52,6 +39,23 @@ def ring_doorbell():
             print(f"Failed to ring doorbell. Status code: {response.status_code}")
     except RequestException as e:
         print(f"Failed to send notification: {e}")
+        
+def periodic_health_check():
+    while True:
+        if not check_connection():
+            print("Connection lost. Attempting to reconnect...")
+            reconnect()
+        time.sleep(60) # Check every minute
+
+# Start the health check in a separate thread
+health_check_thread = threading.Thread(target=periodic_health_check, daemon=True)
+health_check_thread.start()
+
+def reconnect():
+    while not check_connection():
+        print("Attempting to reconnect...")
+        time.sleep(60)  # Wait for 1 minute before trying again
+    print("Connection re-established.")  
 
 print("Listening for button press on gamepad...")
 
