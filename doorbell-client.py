@@ -4,6 +4,9 @@ import time
 from requests.exceptions import RequestException
 import configparser
 import threading
+import urllib3
+
+urllib3.disable_warnings()
 
 
 config = configparser.ConfigParser()
@@ -60,21 +63,29 @@ def reconnect():
 print("Listening for button press on gamepad...")
 
 last_press_time = 0
-COOLDOWN_PERIOD = 1  # 5 seconds cooldown between presses
+COOLDOWN_PERIOD = 1  # 1 second cooldown between presses
+button_state = 0
 
 while True:
-    events = get_gamepad()
-    for event in events:
-        if event.code == 'BTN_TRIGGER' and event.state == 1:
-            current_time = time.time()
-            if current_time - last_press_time >= COOLDOWN_PERIOD:
-                print("Button 0 pressed!")
-                if check_connection():
-                    ring_doorbell()
-                    last_press_time = current_time
-                else:
-                    print("Connection lost. Attempting to reconnect...")
-                    reconnect()
-            else:
-                print("Button press ignored (cooldown period)")
-    time.sleep(0.01)  # Small delay to prevent CPU overuse
+    try:
+        events = get_gamepad()
+        for event in events:
+            if event.code == 'BTN_TRIGGER':
+                if event.state == 1 and button_state == 0:  # Button just pressed
+                    button_state = 1
+                    current_time = time.time()
+                    if current_time - last_press_time >= COOLDOWN_PERIOD:
+                        print("Button pressed!")
+                        if check_connection():
+                            ring_doorbell()
+                            last_press_time = current_time
+                        else:
+                            print("Connection lost. Cannot ring doorbell. Will try to reconnect on next press.")
+                    else:
+                        print("Button press ignored (cooldown period)")
+                elif event.state == 0 and button_state == 1:  # Button released
+                    button_state = 0
+                    print("Button released")
+    except Exception as e:
+        print(f"Error reading gamepad: {e}")
+    time.sleep(0.0001)  # Small delay to prevent CPU overuse
