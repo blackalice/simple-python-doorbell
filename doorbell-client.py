@@ -3,6 +3,7 @@ import requests
 import time
 from requests.exceptions import RequestException
 import configparser
+import threading
 
 
 config = configparser.ConfigParser()
@@ -10,6 +11,18 @@ config.read('config.ini')
 PC_IP = config['NETWORK']['ip']
 PC_PORT = config['NETWORK']['port']
 API_KEY = config['API']['key']
+
+def periodic_health_check():
+    while True:
+        if not check_connection():
+            print("Connection lost. Attempting to reconnect...")
+            reconnect()
+        time.sleep(60)  # Check every minute
+
+# Start the health check in a separate thread
+health_check_thread = threading.Thread(target=periodic_health_check, daemon=True)
+health_check_thread.start()
+
 
 def check_connection():
     try:
@@ -52,8 +65,12 @@ while True:
             current_time = time.time()
             if current_time - last_press_time >= COOLDOWN_PERIOD:
                 print("Button 0 pressed!")
-                ring_doorbell()
-                last_press_time = current_time
+                if check_connection():
+                    ring_doorbell()
+                    last_press_time = current_time
+                else:
+                    print("Connection lost. Attempting to reconnect...")
+                    reconnect()
             else:
                 print("Button press ignored (cooldown period)")
     time.sleep(0.01)  # Small delay to prevent CPU overuse
