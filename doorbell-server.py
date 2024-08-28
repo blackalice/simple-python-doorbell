@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from flask import Flask, request, abort, jsonify
 from winotify import Notification, audio
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -11,8 +11,15 @@ import threading
 import sys
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
+import json
+import time
+import logging
 
 app = Flask(__name__)
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Function to create default config
 def create_default_config():
@@ -31,6 +38,10 @@ def create_default_config():
         'length': '5',
         'icon': 'path/to/icon.png'
     }
+    config['BUTTON'] = {
+        'code': 'BTN_TRIGGER',
+        'type': 'Key'
+    }
     with open('config.ini', 'w') as configfile:
         config.write(configfile)
     return config
@@ -38,7 +49,7 @@ def create_default_config():
 # Load or create configuration
 config = configparser.ConfigParser()
 if not os.path.exists('config.ini'):
-    print("Config file not found. Creating new config with default values.")
+    logging.info("Config file not found. Creating new config with default values.")
     config = create_default_config()
 else:
     config.read('config.ini')
@@ -49,12 +60,62 @@ API_KEY = config['API']['key']
 limiter = Limiter(key_func=get_remote_address)
 limiter.init_app(app)
 
+# Global variables
+listening_for_button = False
+listening_timeout = None
+new_button_info = None
+
+@app.route('/listening_status', methods=['GET'])
+def listening_status():
+    global listening_for_button
+    logging.debug(f"Listening status requested. Current status: {listening_for_button}")
+    if request.headers.get('X-API-Key') != API_KEY:
+        abort(401)
+    return json.dumps({"listening": listening_for_button}), 200
+
+@app.route('/set_button', methods=['POST'])
+def set_button():
+    global listening_for_button, listening_timeout, new_button_info
+    logging.debug(f"Set button request received. Current listening status: {listening_for_button}")
+    if not listening_for_button:
+        return "Not listening for button", 400
+
+    if request.headers.get('X-API-Key') != API_KEY:
+        abort(401)
+
+    data = request.json
+    logging.debug(f"Received new button data: {data}")
+    new_button_info = data  # Store the new button info
+    
+    listening_for_button = False
+    if listening_timeout:
+        listening_timeout.cancel()
+    logging.debug("Button set successfully")
+    return "Button set successfully", 200
+
+@app.route('/update_ui', methods=['POST'])
+def update_ui():
+    global new_button_info
+    if request.headers.get('X-API-Key') != API_KEY:
+        abort(401)
+    
+    data = request.json
+    new_button_info = data
+    return "UI update received", 200
+
 @app.route('/ring', methods=['GET'])
 @limiter.limit("5 per minute")
 def ring():
+    global listening_for_button
+    logging.debug("Ring endpoint called")
     # API Key validation
     if request.headers.get('X-API-Key') != API_KEY:
+        logging.debug("Unauthorized ring attempt")
         abort(401)  # Unauthorized
+    
+    if listening_for_button:
+        logging.debug("Ring attempt while in listening mode, ignoring")
+        return "Server is in listening mode", 403
 
     # Create and show notification
     toast = Notification(app_id=config['DETAILS']['appid'],
@@ -65,20 +126,24 @@ def ring():
     
     toast.set_audio(audio.IM, loop=False)
     toast.show()
+    logging.debug("Doorbell notification sent")
     return "Doorbell rung", 200
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    logging.debug("Health check endpoint called")
     if request.headers.get('X-API-Key') != API_KEY:
+        logging.debug("Unauthorized health check attempt")
         abort(401)
     return "OK", 200
 
 def run_flask():
+    logging.debug("Starting Flask server")
     current_dir = os.path.dirname(os.path.abspath(__file__))
     ssl_cert_path = os.path.join(current_dir, 'ssl', 'server.crt')
     ssl_key_path = os.path.join(current_dir, 'ssl', 'server.key')
     
-    app.run(host='0.0.0.0', port=5000, ssl_context=(ssl_cert_path, ssl_key_path))
+    app.run(host='0.0.0.0', port=5000, ssl_context=(ssl_cert_path, ssl_key_path), debug=True, use_reloader=False)
 
 def exit_action(icon):
     icon.stop()
@@ -88,7 +153,7 @@ class ConfigDialog:
     def __init__(self, master):
         self.master = master
         self.master.title("Doorbell Server Configuration")
-        self.master.geometry("400x400")
+        self.master.geometry("400x450")
         self.create_widgets()
 
     def create_widgets(self):
@@ -123,6 +188,9 @@ class ConfigDialog:
                 self.entries[f"{section}.{key}"].grid(row=row, column=1, sticky=(tk.W, tk.E), padx=5)
                 row += 1
 
+        ttk.Button(scrollable_frame, text="Set Doorbell Button", command=self.set_doorbell_button).grid(row=row, column=0, columnspan=2, pady=10)
+        row += 1
+
         button_frame = ttk.Frame(scrollable_frame)
         button_frame.grid(row=row, column=0, columnspan=2, pady=10)
         ttk.Button(button_frame, text="Save", command=self.save_config).grid(row=0, column=0, padx=5)
@@ -145,8 +213,51 @@ class ConfigDialog:
         global API_KEY
         API_KEY = config['API']['key']
 
-        tk.messagebox.showinfo("Config Updated", "Configuration has been updated successfully!")
+        messagebox.showinfo("Config Updated", "Configuration has been updated successfully!")
         self.master.destroy()
+
+    def set_doorbell_button(self):
+        global listening_for_button, listening_timeout, new_button_info
+        logging.debug("Set doorbell button clicked")
+        listening_for_button = True
+        new_button_info = None
+        
+        # Set a timeout for listening mode (e.g., 30 seconds)
+        def timeout_listening():
+            global listening_for_button
+            listening_for_button = False
+            logging.debug("Listening mode timed out")
+            messagebox.showinfo("Timeout", "Button setting timed out. Please try again.")
+
+        listening_timeout = threading.Timer(30.0, timeout_listening)
+        listening_timeout.start()
+
+        messagebox.showinfo("Set Doorbell Button", "Press the desired button on the client device within 30 seconds.")
+        logging.debug("Entered listening mode")
+
+        # Start a thread to update the dialog with listening status
+        threading.Thread(target=self.update_listening_status, daemon=True).start()
+
+    def update_listening_status(self):
+        status_label = ttk.Label(self.master, text="Listening for button press...")
+        status_label.grid(row=len(self.entries) + 2, column=0, columnspan=2)
+
+        while listening_for_button:
+            status_label.config(text="Listening for button press..." + "." * (int(time.time()) % 3 + 1))
+            time.sleep(0.5)
+            self.master.update()
+
+        if new_button_info:
+            status_label.config(text=f"New button set: {new_button_info['type']} - {new_button_info['code']}")
+            self.entries['BUTTON.type'].delete(0, tk.END)
+            self.entries['BUTTON.type'].insert(0, new_button_info['type'])
+            self.entries['BUTTON.code'].delete(0, tk.END)
+            self.entries['BUTTON.code'].insert(0, new_button_info['code'])
+        else:
+            status_label.config(text="Listening timed out")
+        
+        logging.debug(f"Listening mode ended. Button info: {new_button_info}")
+        self.master.after(3000, status_label.destroy)  # Remove the label after 3 seconds
 
 def open_config_dialog(icon):
     root = tk.Tk()
