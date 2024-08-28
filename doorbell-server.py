@@ -12,22 +12,21 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
-import tkinter.font as tkfont
+from tkinter import font as tkfont
 import json
 import time
 import logging
-
+import sv_ttk
 
 app = Flask(__name__)
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Function to create default config
 def create_default_config():
     config = configparser.ConfigParser()
     config['API'] = {
-        'key': 'your_api_key_here'
+        'key': ''  # Empty by default
     }
     config['NETWORK'] = {
         'ip': '127.0.0.1',
@@ -44,17 +43,25 @@ def create_default_config():
         'code': 'BTN_TRIGGER',
         'type': 'Key'
     }
+    config['SYSTEM'] = {
+        'initial_setup_done': 'NO'
+    }
     with open('config.ini', 'w') as configfile:
         config.write(configfile)
-    return config
+    return config, True  # Return True to indicate a new config was created
 
 # Load or create configuration
 config = configparser.ConfigParser()
+new_config_created = False
 if not os.path.exists('config.ini'):
     logging.info("Config file not found. Creating new config with default values.")
-    config = create_default_config()
+    config, new_config_created = create_default_config()
 else:
     config.read('config.ini')
+    if 'SYSTEM' not in config:
+        config['SYSTEM'] = {'initial_setup_done': 'NO'}
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
 
 API_KEY = config['API']['key']
 
@@ -152,12 +159,19 @@ def exit_action(icon):
     os._exit(0)
 
 class ConfigDialog:
-    def __init__(self, master):
+    def __init__(self, master, show_welcome=False):
         self.master = master
         self.master.title("Doorbell Server Configuration")
         self.default_font = tkfont.nametofont("TkDefaultFont")
+        
+        # Apply Sun Valley theme (dark by default, you can change to "light" if preferred)
+        sv_ttk.set_theme("dark")
+        
         self.create_widgets()
         self.adjust_window_size()
+
+        if show_welcome:
+            messagebox.showinfo("Welcome", "Welcome! Please configure your doorbell server.")
 
     def create_widgets(self):
         main_frame = ttk.Frame(self.master, padding="20")
@@ -168,15 +182,16 @@ class ConfigDialog:
         self.entries = {}
         row = 0
         for section in config.sections():
-            section_label = ttk.Label(main_frame, text=section, font=(self.default_font.cget("family"), self.default_font.cget("size"), "bold"))
-            section_label.grid(row=row, column=0, sticky=tk.W, pady=(10,5))
-            row += 1
-            for key in config[section]:
-                ttk.Label(main_frame, text=key).grid(row=row, column=0, sticky=tk.W)
-                self.entries[f"{section}.{key}"] = ttk.Entry(main_frame, width=40)
-                self.entries[f"{section}.{key}"].insert(0, config[section][key])
-                self.entries[f"{section}.{key}"].grid(row=row, column=1, sticky=(tk.W, tk.E), padx=5)
+            if section != 'SYSTEM':  # Skip the SYSTEM section
+                section_label = ttk.Label(main_frame, text=section, font=(self.default_font.cget("family"), self.default_font.cget("size"), "bold"))
+                section_label.grid(row=row, column=0, sticky=tk.W, pady=(10,5))
                 row += 1
+                for key in config[section]:
+                    ttk.Label(main_frame, text=key).grid(row=row, column=0, sticky=tk.W)
+                    self.entries[f"{section}.{key}"] = ttk.Entry(main_frame, width=40)
+                    self.entries[f"{section}.{key}"].insert(0, config[section][key])
+                    self.entries[f"{section}.{key}"].grid(row=row, column=1, sticky=(tk.W, tk.E), padx=5)
+                    row += 1
 
         ttk.Button(main_frame, text="Set Doorbell Button", command=self.set_doorbell_button).grid(row=row, column=0, columnspan=2, pady=10)
         row += 1
@@ -202,6 +217,8 @@ class ConfigDialog:
         for key, entry in self.entries.items():
             section, option = key.split('.')
             config[section][option] = entry.get()
+
+        config['SYSTEM']['initial_setup_done'] = 'YES'
 
         with open('config.ini', 'w') as configfile:
             config.write(configfile)
@@ -255,21 +272,29 @@ class ConfigDialog:
         logging.debug(f"Listening mode ended. Button info: {new_button_info}")
         self.master.after(3000, status_label.destroy)  # Remove the label after 3 seconds
 
-def open_config_dialog(icon):
+def open_config_dialog(icon=None, show_welcome=False):
     root = tk.Tk()
-    ConfigDialog(root)
+    dialog = ConfigDialog(root, show_welcome)
     root.mainloop()
 
 def create_tray_icon():
     image = Image.open("icon.png")  # Replace with path to your icon
     menu = pystray.Menu(
-        pystray.MenuItem("Config", open_config_dialog),
+        pystray.MenuItem("Config", lambda: open_config_dialog(show_welcome=False)),
         pystray.MenuItem("Exit", exit_action)
     )
     icon = pystray.Icon("name", image, "Doorbell Server", menu)
     icon.run()
 
 if __name__ == '__main__':
+    show_welcome = new_config_created or config.get('SYSTEM', 'initial_setup_done', fallback='NO').upper() != 'YES'
+    
+    if show_welcome:
+        open_config_dialog(show_welcome=True)
+        config['SYSTEM']['initial_setup_done'] = 'YES'
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+    
     if len(sys.argv) > 1 and sys.argv[1] == '--tray':
         flask_thread = threading.Thread(target=run_flask)
         flask_thread.start()
