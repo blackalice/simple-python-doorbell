@@ -1,4 +1,4 @@
-![icon](icon-large.png)
+![icon](icon.png | width=250)
 
 # Simple Python Doorbell
 
