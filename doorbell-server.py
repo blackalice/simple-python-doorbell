@@ -173,6 +173,7 @@ class ConfigDialog:
         if show_welcome:
             messagebox.showinfo("Welcome", "Welcome! Please configure your doorbell server.")
 
+
     def create_widgets(self):
         main_frame = ttk.Frame(self.master, padding="20")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -273,14 +274,28 @@ class ConfigDialog:
         self.master.after(3000, status_label.destroy)  # Remove the label after 3 seconds
 
 def open_config_dialog(icon=None, show_welcome=False):
+    logging.debug("Opening config dialog")
     root = tk.Tk()
     dialog = ConfigDialog(root, show_welcome)
+    
+    def on_closing():
+        logging.debug("Config dialog closing")
+        root.quit()
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()
+    logging.debug("Config dialog closed")
+    
+    try:
+        root.destroy()
+        logging.debug("Tkinter root destroyed")
+    except tk.TclError:
+        logging.debug("Tkinter root was already destroyed")
 
 def create_tray_icon():
     image = Image.open("icon.png")  # Replace with path to your icon
     menu = pystray.Menu(
-        pystray.MenuItem("Config", lambda: open_config_dialog(show_welcome=False)),
+        pystray.MenuItem("Config", lambda: threading.Thread(target=lambda: open_config_dialog(show_welcome=False)).start()),
         pystray.MenuItem("Exit", exit_action)
     )
     icon = pystray.Icon("name", image, "Doorbell Server", menu)
