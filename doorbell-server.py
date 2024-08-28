@@ -12,9 +12,11 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+import tkinter.font as tkfont
 import json
 import time
 import logging
+
 
 app = Flask(__name__)
 
@@ -153,54 +155,48 @@ class ConfigDialog:
     def __init__(self, master):
         self.master = master
         self.master.title("Doorbell Server Configuration")
-        self.master.geometry("400x450")
+        self.default_font = tkfont.nametofont("TkDefaultFont")
         self.create_widgets()
+        self.adjust_window_size()
 
     def create_widgets(self):
-        main_frame = ttk.Frame(self.master, padding="10")
+        main_frame = ttk.Frame(self.master, padding="20")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         self.master.columnconfigure(0, weight=1)
         self.master.rowconfigure(0, weight=1)
 
-        canvas = tk.Canvas(main_frame)
-        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
-
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
         self.entries = {}
         row = 0
         for section in config.sections():
-            ttk.Label(scrollable_frame, text=section, font=('Helvetica', 12, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=(10,5))
+            section_label = ttk.Label(main_frame, text=section, font=(self.default_font.cget("family"), self.default_font.cget("size"), "bold"))
+            section_label.grid(row=row, column=0, sticky=tk.W, pady=(10,5))
             row += 1
             for key in config[section]:
-                ttk.Label(scrollable_frame, text=key).grid(row=row, column=0, sticky=tk.W)
-                self.entries[f"{section}.{key}"] = ttk.Entry(scrollable_frame)
+                ttk.Label(main_frame, text=key).grid(row=row, column=0, sticky=tk.W)
+                self.entries[f"{section}.{key}"] = ttk.Entry(main_frame, width=40)
                 self.entries[f"{section}.{key}"].insert(0, config[section][key])
                 self.entries[f"{section}.{key}"].grid(row=row, column=1, sticky=(tk.W, tk.E), padx=5)
                 row += 1
 
-        ttk.Button(scrollable_frame, text="Set Doorbell Button", command=self.set_doorbell_button).grid(row=row, column=0, columnspan=2, pady=10)
+        ttk.Button(main_frame, text="Set Doorbell Button", command=self.set_doorbell_button).grid(row=row, column=0, columnspan=2, pady=10)
         row += 1
 
-        button_frame = ttk.Frame(scrollable_frame)
+        button_frame = ttk.Frame(main_frame)
         button_frame.grid(row=row, column=0, columnspan=2, pady=10)
         ttk.Button(button_frame, text="Save", command=self.save_config).grid(row=0, column=0, padx=5)
         ttk.Button(button_frame, text="Cancel", command=self.master.destroy).grid(row=0, column=1, padx=5)
 
-        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        main_frame.columnconfigure(1, weight=1)
 
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(0, weight=1)
+    def adjust_window_size(self):
+        self.master.update_idletasks()  # Ensure the window has been drawn
+        width = self.master.winfo_reqwidth() + 20  # Add some padding
+        height = self.master.winfo_reqheight() + 20  # Add some padding
+        screen_width = self.master.winfo_screenwidth()
+        screen_height = self.master.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        self.master.geometry(f"{width}x{height}+{x}+{y}")
 
     def save_config(self):
         for key, entry in self.entries.items():
@@ -240,7 +236,7 @@ class ConfigDialog:
 
     def update_listening_status(self):
         status_label = ttk.Label(self.master, text="Listening for button press...")
-        status_label.grid(row=len(self.entries) + 2, column=0, columnspan=2)
+        status_label.grid(row=len(self.entries) + 3, column=0, columnspan=2)
 
         while listening_for_button:
             status_label.config(text="Listening for button press..." + "." * (int(time.time()) % 3 + 1))
