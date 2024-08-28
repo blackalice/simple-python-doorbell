@@ -1,4 +1,4 @@
-![icon](icon.png | width=250)
+<img src="https://raw.githubusercontent.com/blackalice/simple-python-doorbell/main/icon-large.png" width="250">
 
 # Simple Python Doorbell
 
